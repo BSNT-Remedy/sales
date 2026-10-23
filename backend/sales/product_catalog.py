@@ -37,7 +37,7 @@ def search_products(search="", limit=25):
             f"""
             SELECT id, sku, name, category_id, unit_price, status
             FROM {table}
-            WHERE status = %s AND (name LIKE %s OR sku LIKE %s)
+            WHERE LOWER(TRIM(status)) = %s AND (name LIKE %s OR sku LIKE %s)
             ORDER BY name, id
             LIMIT %s
             """,

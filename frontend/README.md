@@ -18,7 +18,7 @@ The Vite development server proxies `/api` to `http://localhost:8000`. Copy `.en
 - The frontend searches the backend's authenticated `/products/` endpoint. The backend reads active products directly from the existing MySQL `catalog_product` table (including product name, SKU, category ID, and price); no Django Product app or Product model is required.
 - The Sales API uses the simplified customer, order, and order-item models. Order creation sends `customer_id`; item creation sends `sales_order_id` and `product_id`. Order responses expose customer contact/address details and recalculated subtotal/total amounts without billing fields.
 - The Sales API uses JWT access/refresh tokens. Access tokens are sent as Bearer credentials, refreshed on an expired-token response, and refresh tokens are blacklisted on sign-out.
-- The order workflow creates a draft first and then writes each item through `/sales-order-items/`. If an item fails, the existing draft remains available for repair from its details page.
+- The order workflow submits the draft and all selected items in one request. The backend creates them in a database transaction, recalculates totals, and rolls the whole creation back if any item is invalid.
 
 For a deployed frontend served from a different origin, configure the Django deployment's CORS policy to allow that origin. Do not enable permissive CORS for production.
 

@@ -1,10 +1,15 @@
 from decimal import Decimal
+import uuid
 
 from django.conf import settings
 from django.core.validators import MinValueValidator
 from django.db import models
 from django.db.models import Q
 from django.utils import timezone
+
+
+def generate_order_number():
+    return f"SO-{uuid.uuid4().hex[:29].upper()}"
 
 
 class Customer(models.Model):
@@ -31,7 +36,11 @@ class SalesOrder(models.Model):
         CANCELLED = "cancelled", "Cancelled"
         COMPLETED = "completed", "Completed"
 
-    order_number = models.CharField(max_length=32, unique=True, null=True, blank=True)
+    order_number = models.CharField(
+        max_length=32,
+        unique=True,
+        default=generate_order_number,
+    )
     customer = models.ForeignKey(
         Customer,
         on_delete=models.PROTECT,

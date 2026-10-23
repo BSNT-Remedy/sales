@@ -46,17 +46,11 @@ export async function getOrder(id: string) {
   return data;
 }
 
-export async function createOrder(customer_id: number) {
-  const { data } = await api.post<SalesOrder>('/sales-orders/', { customer_id });
-  return data;
-}
-
-export async function addOrderItem(order: number, product: number, quantity: string) {
-  const { data } = await api.post<SalesOrderItem>('/sales-order-items/', {
-    sales_order_id: order,
-    product_id: product,
-    quantity,
-  });
+export async function createOrder(
+  customer_id: number,
+  items: Array<{ product_id: number; quantity: string }>,
+) {
+  const { data } = await api.post<SalesOrder>('/sales-orders/', { customer_id, items });
   return data;
 }
 

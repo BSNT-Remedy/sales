@@ -66,4 +66,4 @@ JWT credentials are issued at `POST /api/v1/auth/token/`; refresh tokens at `POS
 - `/api/v1/sales-orders/{id}/confirm/` and `/cancel/`
 - `/api/v1/sales-order-items/?sales_order_id={order_id}`
 
-Create an order with `{ "customer_id": 1 }`; add an item with `{ "sales_order_id": 1, "product_id": 2, "quantity": "2.000" }`. Unit prices come from the existing product and are not client-writable. Orders are created as drafts; confirmation requires at least one item. Deletion and item mutation are restricted to drafts.
+Create a draft and its items atomically with `{ "customer_id": 1, "items": [{ "product_id": 2, "quantity": "2.000" }] }`. `items` may be omitted when intentionally creating an empty draft. Alternatively, add an item later with `{ "sales_order_id": 1, "product_id": 2, "quantity": "2.000" }` at `/api/v1/sales-order-items/`. Unit prices come from the existing product and are not client-writable. Orders are created as drafts; confirmation requires at least one item. Deletion and item mutation are restricted to drafts.

@@ -17,6 +17,7 @@ from .permissions import (
 )
 from .serializers import (
     CustomerSerializer,
+    SalesOrderCreateSerializer,
     SalesOrderItemReadSerializer,
     SalesOrderItemWriteSerializer,
     SalesOrderSerializer,
@@ -50,6 +51,17 @@ class SalesOrderViewSet(viewsets.ModelViewSet):
     serializer_class = SalesOrderSerializer
     permission_classes = (SalesOrderPermission,)
     queryset = SalesOrder.objects.select_related("customer", "created_by").prefetch_related("items")
+
+    def create(self, request, *args, **kwargs):
+        serializer = SalesOrderCreateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        order = services.create_order(
+            customer=serializer.validated_data["customer_id"],
+            user=request.user,
+            items=serializer.validated_data["items"],
+        )
+        output = SalesOrderSerializer(order, context=self.get_serializer_context())
+        return Response(output.data, status=status.HTTP_201_CREATED)
 
     def get_queryset(self):
         queryset = super().get_queryset()
@@ -91,13 +103,6 @@ class SalesOrderViewSet(viewsets.ModelViewSet):
         if date_from and date_to and date_from > date_to:
             raise ValidationError({"date_to": "Must not be earlier than date_from."})
         return queryset
-
-    def perform_create(self, serializer):
-        order = services.create_order(
-            customer=serializer.validated_data["customer"],
-            user=self.request.user,
-        )
-        serializer.instance = order
 
     def perform_update(self, serializer):
         order = services.update_order(

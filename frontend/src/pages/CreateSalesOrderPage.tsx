@@ -25,12 +25,30 @@ import {
 } from '@mui/material';
 import axios from 'axios';
 import { Customer, Product } from '../types';
-import { addOrderItem, createOrder, getCustomers, searchProducts } from '../services/sales';
+import { createOrder, getCustomers, searchProducts } from '../services/sales';
 import { normalizeQuantity } from '../utils/quantity';
 
 interface OrderLine {
   product: Product;
   quantity: string;
+}
+
+function getApiErrorMessage(error: unknown): string | undefined {
+  if (!axios.isAxiosError(error)) return undefined;
+  const data: unknown = error.response?.data;
+  if (typeof data === 'string') return data;
+  if (!data || typeof data !== 'object') return undefined;
+
+  const messages: string[] = [];
+  const collect = (value: unknown) => {
+    if (typeof value === 'string') messages.push(value);
+    else if (Array.isArray(value)) value.forEach(collect);
+    else if (value && typeof value === 'object') {
+      Object.values(value).forEach(collect);
+    }
+  };
+  collect(data);
+  return messages.length ? messages.join(' ') : undefined;
 }
 
 const money = (amount: number) => new Intl.NumberFormat('en-US', {
@@ -112,32 +130,22 @@ export default function CreateSalesOrderPage() {
       product: line.product,
       quantity: normalizeQuantity(line.quantity),
     }));
-    if (items.some((item) => item.quantity === null)) {
-      setError('Each item quantity must be at least 0.001 and have no more than three decimal places.');
-      return;
+    const orderItems: Array<{ product_id: number; quantity: string }> = [];
+    for (const item of items) {
+      if (item.quantity === null) {
+        setError('Each item quantity must be at least 0.001 and have no more than three decimal places.');
+        return;
+      }
+      orderItems.push({ product_id: item.product.id, quantity: item.quantity });
     }
 
     setSubmitting(true);
     setError('');
-    let orderId: number | null = null;
     try {
-      const order = await createOrder(customer.id);
-      orderId = order.id;
-      for (const item of items) {
-        if (item.quantity === null) continue;
-        await addOrderItem(order.id, item.product.id, item.quantity);
-      }
+      const order = await createOrder(customer.id, orderItems);
       navigate(`/orders/${order.id}`);
     } catch (err) {
-      const detail = axios.isAxiosError(err)
-        ? (err.response?.data as { detail?: string } | undefined)?.detail
-        : undefined;
-      setError(orderId
-        ? `Order ${orderId} was created as a draft, but an item could not be saved${detail ? `: ${detail}` : '.'} You can continue editing it from order details.`
-        : detail || 'The order could not be created. Please try again.');
-      if (orderId) {
-        window.setTimeout(() => navigate(`/orders/${orderId}`), 1200);
-      }
+      setError(getApiErrorMessage(err) || 'The order and its items could not be created. Please try again.');
     } finally {
       setSubmitting(false);
     }

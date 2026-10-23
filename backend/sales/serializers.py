@@ -1,7 +1,23 @@
+from decimal import Decimal
+
 from rest_framework import serializers
 
 from .models import Customer, SalesOrder, SalesOrderItem
 from .product_catalog import get_products_by_ids
+
+
+class SalesOrderCreateItemSerializer(serializers.Serializer):
+    product_id = serializers.IntegerField(min_value=1)
+    quantity = serializers.DecimalField(
+        max_digits=12,
+        decimal_places=3,
+        min_value=Decimal("0.001"),
+    )
+
+
+class SalesOrderCreateSerializer(serializers.Serializer):
+    customer_id = serializers.PrimaryKeyRelatedField(queryset=Customer.objects.all())
+    items = SalesOrderCreateItemSerializer(many=True, required=False, default=list)
 
 
 class CustomerSerializer(serializers.ModelSerializer):

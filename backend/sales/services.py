@@ -1,7 +1,6 @@
 from decimal import Decimal, ROUND_HALF_UP
 
 from django.db import transaction
-from django.utils import timezone
 from rest_framework.exceptions import ValidationError
 
 from .models import Customer, SalesOrder, SalesOrderItem
@@ -18,24 +17,27 @@ def _money(value):
 def _active_product(product):
     if product is None:
         raise ValidationError({"product_id": "Product does not exist."})
-    if product["status"] != "active":
+    status = str(product["status"]).strip().casefold()
+    if status != "active":
         raise ValidationError({"product_id": "Only active products can be added to an order."})
     return product
 
 
-def _apply_order_number(order):
-    order.order_number = f"SO-{timezone.now():%Y}-{order.pk:08d}"
-    order.save(update_fields=("order_number",))
-
-
 @transaction.atomic
-def create_order(*, customer, user):
+def create_order(*, customer, user, items=()):
     customer = Customer.objects.select_for_update().get(pk=customer.pk)
     order = SalesOrder.objects.create(
         customer=customer,
         created_by=user,
     )
-    _apply_order_number(order)
+    for item in items:
+        _create_order_item(
+            order=order,
+            product_id=item["product_id"],
+            quantity=item["quantity"],
+        )
+    if items:
+        recalculate_order_totals(order)
     return order
 
 
@@ -64,18 +66,23 @@ def recalculate_order_totals(order):
     order.save(update_fields=("subtotal", "total_amount", "updated_at"))
 
 
+def _create_order_item(*, order, product_id, quantity):
+    product = _active_product(get_product(product_id, for_update=True))
+    unit_price = Decimal(str(product["unit_price"]))
+    return SalesOrderItem.objects.create(
+        sales_order=order,
+        product_id=product["id"],
+        quantity=quantity,
+        unit_price=unit_price,
+        line_total=_money(Decimal(quantity) * unit_price),
+    )
+
+
 @transaction.atomic
 def create_order_item(*, order, product_id, quantity):
     order = SalesOrder.objects.select_for_update().get(pk=order.pk)
     _require_draft(order)
-    product = _active_product(get_product(product_id, for_update=True))
-    item = SalesOrderItem.objects.create(
-        sales_order=order,
-        product_id=product["id"],
-        quantity=quantity,
-        unit_price=product["unit_price"],
-        line_total=_money(Decimal(quantity) * product["unit_price"]),
-    )
+    item = _create_order_item(order=order, product_id=product_id, quantity=quantity)
     recalculate_order_totals(order)
     return item
 
@@ -89,7 +96,7 @@ def update_order_item(*, item, quantity, product_id=None):
     if product_id is not None and product_id != item.product_id:
         product = _active_product(get_product(product_id, for_update=True))
         item.product_id = product["id"]
-        item.unit_price = product["unit_price"]
+        item.unit_price = Decimal(str(product["unit_price"]))
         update_fields.extend(("product_id", "unit_price"))
     item.quantity = quantity
     item.line_total = _money(Decimal(quantity) * item.unit_price)
